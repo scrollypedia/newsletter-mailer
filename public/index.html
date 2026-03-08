@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Newsletter Mailer</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --brand: #4f46e5;
+      --brand-light: #eef2ff;
+      --brand-border: #c7d2fe;
+      --ink: #0f172a;
+      --body: #334155;
+      --muted: #94a3b8;
+      --border: #e2e8f0;
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --cream: #f1f5f9;
+    }
+    body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--ink); min-height: 100vh; }
+
+    /* Layout */
+    .app { display: grid; grid-template-columns: 260px 1fr; grid-template-rows: 60px 1fr; min-height: 100vh; }
+    header { grid-column: 1/-1; background: #fff; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 28px; }
+    .logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+    .logo-icon { width: 32px; height: 32px; background: var(--brand); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 16px; }
+    .logo-text { font-size: 16px; font-weight: 700; color: var(--ink); letter-spacing: -0.02em; }
+    .header-tag { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; background: var(--bg); padding: 4px 10px; border-radius: 20px; border: 1px solid var(--border); }
+
+    /* Sidebar */
+    aside { background: #fff; border-right: 1px solid var(--border); padding: 24px 20px; display: flex; flex-direction: column; gap: 24px; overflow-y: auto; }
+    .sidebar-label { font-family: 'JetBrains Mono', monospace; font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 12px; }
+    .stat-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .stat { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+    .stat-num { font-size: 28px; font-weight: 700; color: var(--ink); line-height: 1; }
+    .stat-lbl { font-size: 11px; color: var(--muted); margin-top: 3px; }
+    .sub-list { display: flex; flex-direction: column; gap: 6px; max-height: 160px; overflow-y: auto; }
+    .sub-item { display: flex; align-items: center; gap: 8px; padding: 7px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--body); opacity: 0; transform: translateX(-6px); animation: fadeSlide 0.25s ease forwards; }
+    .sub-item::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: #22c55e; flex-shrink: 0; }
+    @keyframes fadeSlide { to { opacity: 1; transform: translateX(0); } }
+    .refresh-btn { width: 100%; padding: 9px; background: transparent; border: 1px solid var(--border); border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); cursor: pointer; transition: all 0.2s; margin-top: auto; }
+    .refresh-btn:hover { background: var(--ink); color: #fff; border-color: var(--ink); }
+    .empty-msg { font-size: 12px; color: var(--muted); text-align: center; padding: 16px 0; }
+
+    /* Newsletter list */
+    .nl-list { display: flex; flex-direction: column; gap: 4px; max-height: 220px; overflow-y: auto; flex: 1; }
+    .nl-item { display: flex; flex-direction: column; gap: 3px; padding: 8px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; transition: all 0.15s; }
+    .nl-item:hover { border-color: var(--brand-border); background: var(--brand-light); }
+    .nl-item.active { border-color: var(--brand); background: var(--brand-light); }
+    .nl-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+    .nl-subject { font-size: 12px; font-weight: 500; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; min-width: 0; }
+    .nl-meta { display: flex; align-items: center; gap: 6px; }
+    .nl-badge { font-family: 'JetBrains Mono', monospace; font-size: 9px; text-transform: uppercase; letter-spacing: 0.05em; padding: 2px 6px; border-radius: 3px; font-weight: 500; flex-shrink: 0; }
+    .nl-badge-draft { background: var(--cream); color: var(--muted); border: 1px solid var(--border); }
+    .nl-badge-sent { background: var(--brand-light); color: var(--brand); border: 1px solid var(--brand-border); }
+    .nl-date { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: var(--muted); flex-shrink: 0; }
+    .nl-del { background: none; border: none; font-size: 11px; color: var(--muted); cursor: pointer; padding: 0 2px; opacity: 0; transition: opacity 0.15s; }
+    .nl-item:hover .nl-del { opacity: 1; }
+    .nl-del:hover { color: #dc2626; }
+
+    /* Main */
+    main { padding: 36px 40px; display: flex; flex-direction: column; gap: 20px; overflow-y: auto; }
+    .page-title { font-size: 22px; font-weight: 700; color: var(--ink); letter-spacing: -0.02em; }
+    .page-title span { color: var(--brand); }
+    .page-sub { font-size: 13px; color: var(--muted); margin-top: 4px; }
+
+    /* Compose card */
+    .card { background: #fff; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+    .card-header { padding: 16px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+    .card-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--brand); }
+    .card-title { font-size: 14px; font-weight: 600; color: var(--ink); flex: 1; }
+    .btn-new { margin-left: auto; font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.05em; text-transform: uppercase; background: transparent; border: 1px solid var(--border); color: var(--muted); padding: 4px 10px; border-radius: 5px; cursor: pointer; transition: all 0.15s; }
+    .btn-new:hover { background: var(--ink); color: #fff; border-color: var(--ink); }
+    .field { padding: 14px 24px; border-bottom: 1px solid var(--border); }
+    .field-label { font-family: 'JetBrains Mono', monospace; font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 7px; display: flex; align-items: center; gap: 8px; }
+    .field-hint { font-family: 'Inter', sans-serif; font-size: 10px; text-transform: none; letter-spacing: 0; color: #cbd5e1; font-weight: 400; }
+    input[type="text"], textarea { width: 100%; background: transparent; border: none; outline: none; font-family: 'Inter', sans-serif; font-size: 14px; color: var(--ink); resize: none; }
+    input[type="text"]::placeholder, textarea::placeholder { color: #cbd5e1; }
+    #body { min-height: 300px; line-height: 1.7; }
+    .toolbar { padding: 14px 24px; background: var(--bg); display: flex; align-items: center; gap: 10px; }
+    .btn { padding: 9px 20px; border-radius: 7px; border: none; font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s; }
+    .btn-primary { background: var(--brand); color: #fff; }
+    .btn-primary:hover { background: color-mix(in srgb, var(--brand) 85%, black); transform: translateY(-1px); }
+    .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+    .btn-ghost { background: transparent; color: var(--body); border: 1px solid var(--border); }
+    .btn-ghost:hover { background: var(--bg); }
+    .to-pill { margin-left: auto; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--muted); background: #fff; border: 1px solid var(--border); padding: 5px 12px; border-radius: 20px; }
+    .to-pill strong { color: var(--ink); }
+    .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.6s linear infinite; vertical-align: middle; margin-right: 5px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Modal */
+    .overlay { position: fixed; inset: 0; background: rgba(15,23,42,0.6); backdrop-filter: blur(3px); z-index: 50; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+    .overlay.open { opacity: 1; pointer-events: all; }
+    .modal { background: #fff; border-radius: 12px; width: 660px; max-width: 92vw; max-height: 85vh; overflow: hidden; display: flex; flex-direction: column; transform: scale(0.97); transition: transform 0.2s; border: 1px solid var(--border); }
+    .overlay.open .modal { transform: scale(1); }
+    .modal-head { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+    .modal-head h3 { font-size: 15px; font-weight: 600; }
+    .modal-close { background: none; border: none; font-size: 18px; cursor: pointer; color: var(--muted); line-height: 1; padding: 2px 6px; border-radius: 4px; }
+    .modal-close:hover { background: var(--bg); }
+    .modal-body { flex: 1; overflow: hidden; }
+    .modal-body iframe { width: 100%; height: 520px; border: none; }
+
+    /* Toasts */
+    .toasts { position: fixed; bottom: 28px; right: 28px; display: flex; flex-direction: column; gap: 8px; z-index: 100; }
+    .toast { padding: 12px 16px; border-radius: 8px; font-size: 13px; font-weight: 500; max-width: 340px; display: flex; align-items: flex-start; gap: 10px; animation: toastIn 0.25s ease; box-shadow: 0 4px 16px rgba(0,0,0,0.12); }
+    @keyframes toastIn { from { opacity:0; transform: translateY(12px); } to { opacity:1; transform: translateY(0); } }
+    .toast-ok { background: var(--ink); color: #f8fafc; }
+    .toast-err { background: #dc2626; color: #fff; }
+    .toast-icon { font-size: 14px; margin-top: 1px; flex-shrink: 0; }
+    .toast-msg strong { display: block; margin-bottom: 2px; }
+    .toast-msg span { font-weight: 400; font-size: 11px; opacity: 0.8; }
+
+    ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <header>
+    <a class="logo" href="#" id="logoLink">
+      <div class="logo-icon" id="logoIcon">N</div>
+      <span class="logo-text" id="logoText">Newsletter</span>
+    </a>
+    <span class="header-tag">Newsletter Admin</span>
+  </header>
+
+  <aside>
+    <div>
+      <div class="sidebar-label">Subscribers</div>
+      <div class="stat-row">
+        <div class="stat"><div class="stat-num" id="activeCount">—</div><div class="stat-lbl">Active</div></div>
+        <div class="stat"><div class="stat-num" id="totalCount">—</div><div class="stat-lbl">Total</div></div>
+      </div>
+    </div>
+    <div style="flex:1;display:flex;flex-direction:column;min-height:0">
+      <div class="sidebar-label">Active List</div>
+      <div class="sub-list" id="subList"><div class="empty-msg">Loading...</div></div>
+    </div>
+    <button class="refresh-btn" onclick="loadSubs()">↻ Refresh from Sheets</button>
+    <div style="flex:1;display:flex;flex-direction:column;min-height:0">
+      <div class="sidebar-label">Newsletters</div>
+      <div class="nl-list" id="nlList"><div class="empty-msg">No saved newsletters</div></div>
+    </div>
+  </aside>
+
+  <main>
+    <div>
+      <h1 class="page-title">Compose <span>Update</span></h1>
+      <p class="page-sub">Write your newsletter and send it to all active subscribers.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-dot"></div>
+        <span class="card-title" id="cardTitle">New Newsletter</span>
+        <button class="btn-new" onclick="clearComposer()">+ New</button>
+      </div>
+
+      <div class="field">
+        <div class="field-label">Subject Line</div>
+        <input type="text" id="subject" placeholder="Weekly Update — March 7, 2026" />
+      </div>
+
+      <div class="field">
+        <div class="field-label">
+          Preview Text
+          <span class="field-hint">shown after subject in inbox · ~90 chars</span>
+        </div>
+        <input type="text" id="previewText" placeholder="What we shipped this week and what's coming next..." maxlength="150" />
+      </div>
+
+      <div class="field" style="border-bottom:none">
+        <div class="field-label">
+          Body
+          <span class="field-hint">## Heading · **bold** · `code` · [link](url) · → callout · --- divider · 1. **Title**\nBody</span>
+        </div>
+        <textarea id="body" placeholder="Hi everyone,&#10;&#10;Here's what's new this week..."></textarea>
+      </div>
+
+      <div class="toolbar">
+        <button class="btn btn-ghost" onclick="preview()">Preview</button>
+        <button class="btn btn-ghost" onclick="saveDraft()">Save Draft</button>
+        <button class="btn btn-primary" id="sendBtn" onclick="send()">Send Newsletter</button>
+        <div class="to-pill">To: <strong id="recipCount">—</strong> subscribers</div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Preview Modal -->
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>Email Preview</h3>
+      <button class="modal-close" onclick="closePreview()">✕</button>
+    </div>
+    <div class="modal-body"><iframe id="previewFrame"></iframe></div>
+  </div>
+</div>
+
+<div class="toasts" id="toasts"></div>
+
+<script>
+let subs = [];
+let newsletters = [];
+let currentId = null;
+let cfg = {}; // brand config from server
+
+// ── Load brand config ──
+async function loadConfig() {
+  try {
+    cfg = await (await fetch('/api/config')).json();
+    // Apply brand color to CSS custom properties
+    const r = document.documentElement.style;
+    r.setProperty('--brand', cfg.color);
+    r.setProperty('--brand-light', cfg.colorLight);
+    r.setProperty('--brand-border', cfg.colorBorder);
+    // Update header logo
+    document.getElementById('logoIcon').textContent = cfg.logoLetter;
+    document.getElementById('logoText').textContent = cfg.name;
+    document.getElementById('logoLink').href = cfg.url;
+    document.title = cfg.name + ' Mailer';
+  } catch(e) { /* use defaults */ }
+}
+
+async function loadSubs() {
+  try {
+    const r = await fetch('/api/subscribers');
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    subs = d.subscribers || [];
+    document.getElementById('activeCount').textContent = d.active ?? 0;
+    document.getElementById('totalCount').textContent = d.total ?? 0;
+    document.getElementById('recipCount').textContent = d.active ?? 0;
+    const list = document.getElementById('subList');
+    list.innerHTML = subs.length
+      ? subs.map((s,i) => `<div class="sub-item" style="animation-delay:${i*35}ms">${s.email}</div>`).join('')
+      : '<div class="empty-msg">No active subscribers yet</div>';
+  } catch(e) { toast('err','Failed to load',e.message); }
+}
+
+// --- Email renderer (mirrors server.js, uses cfg) ---
+function ri(t) {
+  const C = cfg.color || '#4f46e5';
+  return t
+    .replace(/\*\*(.*?)\*\*/g, `<strong style="color:#0f172a;font-weight:600">$1</strong>`)
+    .replace(/`(.*?)`/g, `<code style="font-family:'Courier New',monospace;font-size:12px;background:#f1f5f9;color:${C};padding:2px 5px;border-radius:3px;border:1px solid #e2e8f0">$1</code>`)
+    .replace(/\[(.*?)\]\((.*?)\)/g, `<a href="$2" style="color:${C};text-decoration:underline">$1</a>`);
+}
+
+function renderBody(body) {
+  const C = cfg.color || '#4f46e5';
+  const CL = cfg.colorLight || '#eef2ff';
+  const CB = cfg.colorBorder || '#c7d2fe';
+  return body.split('\n\n').filter(p=>p.trim()).map(p => {
+    const line = p.trim();
+    if (line.startsWith('## '))
+      return `<tr><td style="padding:28px 0 12px"><p style="margin:0 0 6px;font-family:helvetica,arial,sans-serif;font-size:11px;font-weight:600;color:${C};letter-spacing:0.1em;text-transform:uppercase">${line.slice(3)}</p><div style="height:1px;background:${CB}"></div></td></tr>`;
+    const nm = line.match(/^(\d+)\.\s+\*\*(.*?)\*\*\n?([\s\S]*)/);
+    if (nm) {
+      const [,n,title,rest]=nm;
+      return `<tr><td style="padding:0 0 16px"><table width="100%" cellpadding="0" cellspacing="0" style="border-radius:8px;border:1px solid ${CB};overflow:hidden"><tr><td width="48" valign="top" style="padding:16px 0 16px 16px;background:${CL}"><table cellpadding="0" cellspacing="0"><tr><td style="width:28px;height:28px;background:${C};border-radius:50%;text-align:center;vertical-align:middle"><span style="font-family:helvetica,arial,sans-serif;font-size:12px;font-weight:700;color:#fff;line-height:28px">${n}</span></td></tr></table></td><td style="padding:16px 20px;background:#fff"><p style="margin:0 0 5px;font-family:helvetica,arial,sans-serif;font-size:15px;font-weight:600;color:#0f172a;line-height:1.4">${ri(title)}</p>${rest.trim()?`<p style="margin:0;font-family:helvetica,arial,sans-serif;font-size:14px;color:#475569;line-height:1.7">${ri(rest.trim())}</p>`:''}</td></tr></table></td></tr>`;
+    }
+    if (line.startsWith('→ ')||line.startsWith('-> ')) {
+      const text = line.startsWith('-> ') ? line.slice(3) : line.slice(2);
+      return `<tr><td style="padding:0 0 16px"><table width="100%" cellpadding="0" cellspacing="0" style="background:${CL};border-left:3px solid ${C};border-radius:0 6px 6px 0"><tr><td style="padding:12px 16px"><p style="margin:0;font-family:helvetica,arial,sans-serif;font-size:14px;color:#312e81;line-height:1.65">${ri(text)}</p></td></tr></table></td></tr>`;
+    }
+    if (line==='---')
+      return `<tr><td style="padding:8px 0 20px"><div style="height:1px;background:#f1f5f9"></div></td></tr>`;
+    return `<tr><td style="padding:0 0 16px"><p style="margin:0;font-family:helvetica,arial,sans-serif;font-size:15px;color:#334155;line-height:1.75">${ri(line.replace(/\n/g,'<br>'))}</p></td></tr>`;
+  }).join('');
+}
+
+function buildEmail(subject, body, previewText) {
+  const C = cfg.color || '#4f46e5';
+  const CL = cfg.colorLight || '#eef2ff';
+  const CB = cfg.colorBorder || '#c7d2fe';
+  const name = cfg.name || 'Newsletter';
+  const url = cfg.url || '#';
+  const letter = cfg.logoLetter || 'N';
+  const cta = cfg.ctaText || 'Read More →';
+
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  const issue = Math.floor((now - new Date('2026-01-01'))/(1000*60*60*24));
+  const paras = renderBody(body) || '<tr><td><p style="color:#cbd5e1;font-family:helvetica,sans-serif;font-size:14px">Start writing your newsletter...</p></td></tr>';
+
+  const secondaryBtn = cfg.secondaryUrl ? `
+      <td style="padding-left:10px">
+        <table cellpadding="0" cellspacing="0"><tr><td style="background:#ffffff;border-radius:7px;border:1px solid ${CB}">
+          <a href="${cfg.secondaryUrl}" style="display:inline-block;padding:11px 22px;font-family:helvetica,arial,sans-serif;font-size:13px;font-weight:600;color:${C};text-decoration:none">${cfg.secondaryLabel || ''}</a>
+        </td></tr></table>
+      </td>` : '';
+
+  const footer = cfg.footerText || `You subscribed at <a href="${url}" style="color:#cbd5e1;text-decoration:underline">${url.replace(/^https?:\/\//, '')}</a> · Unsubscribe? Reply to this email.`;
+
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${subject}</title></head>
+<body style="margin:0;padding:0;background:#f8fafc;-webkit-font-smoothing:antialiased">
+${previewText?`<div style="display:none;max-height:0;overflow:hidden;mso-hide:all">${previewText}&nbsp;&#847;&nbsp;&#847;&nbsp;&#847;&nbsp;&#847;&nbsp;&#847;&nbsp;&#847;&nbsp;&#847;&nbsp;&#847;&nbsp;&#847;&nbsp;&#847;&nbsp;&#847;&nbsp;&#847;</div>`:''}
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc"><tr><td align="center" style="padding:40px 16px 64px">
+<table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%">
+
+<tr><td style="padding-bottom:16px"><table width="100%" cellpadding="0" cellspacing="0"><tr>
+  <td><span style="font-family:'Courier New',monospace;font-size:10px;color:#94a3b8;letter-spacing:0.1em;text-transform:uppercase">Issue #${issue}</span></td>
+  <td align="right"><span style="font-family:'Courier New',monospace;font-size:10px;color:#94a3b8">${dateStr}</span></td>
+</tr></table></td></tr>
+
+<tr><td style="background:#ffffff;border-radius:12px;border:1px solid #e2e8f0;overflow:hidden">
+
+  <table width="100%" cellpadding="0" cellspacing="0"><tr><td style="height:4px;background:${C}"></td></tr></table>
+
+  <table width="100%" cellpadding="0" cellspacing="0"><tr><td style="padding:24px 40px">
+    <table width="100%" cellpadding="0" cellspacing="0"><tr>
+      <td valign="middle">
+        <a href="${url}" style="text-decoration:none">
+          <table cellpadding="0" cellspacing="0"><tr>
+            <td style="width:36px;height:36px;background:${C};border-radius:9px;text-align:center;vertical-align:middle;padding:0"><span style="font-family:helvetica,arial,sans-serif;font-size:18px;font-weight:700;color:#ffffff;line-height:36px">${letter}</span></td>
+            <td style="padding-left:10px;vertical-align:middle">
+              <span style="font-family:helvetica,arial,sans-serif;font-size:19px;font-weight:700;color:#0f172a;letter-spacing:-0.02em">${name}</span>
+            </td>
+          </tr></table>
+        </a>
+      </td>
+      <td align="right" valign="middle">
+        <a href="${url}" style="font-family:helvetica,arial,sans-serif;font-size:12px;color:#94a3b8;text-decoration:none">View online →</a>
+      </td>
+    </tr></table>
+  </td></tr></table>
+
+  <table width="100%" cellpadding="0" cellspacing="0"><tr><td style="padding:0 40px"><div style="height:1px;background:#f1f5f9"></div></td></tr></table>
+
+  <table width="100%" cellpadding="0" cellspacing="0"><tr><td style="padding:28px 40px 0">
+    <h1 style="margin:0 0 6px;font-family:helvetica,arial,sans-serif;font-size:22px;font-weight:700;color:#0f172a;line-height:1.3;letter-spacing:-0.02em">${subject||'(No subject)'}</h1>
+    <p style="margin:0;font-family:helvetica,arial,sans-serif;font-size:12px;color:#94a3b8">From the ${name} team</p>
+  </td></tr></table>
+
+  <table width="100%" cellpadding="0" cellspacing="0"><tr><td style="padding:20px 40px 0"><div style="height:1px;background:#f1f5f9"></div></td></tr></table>
+
+  <table width="100%" cellpadding="0" cellspacing="0"><tr><td style="padding:24px 40px 8px">
+    <table width="100%" cellpadding="0" cellspacing="0">${paras}</table>
+  </td></tr></table>
+
+  <table width="100%" cellpadding="0" cellspacing="0"><tr><td style="padding:8px 40px 36px">
+    <table cellpadding="0" cellspacing="0"><tr>
+      <td style="background:${C};border-radius:7px">
+        <a href="${url}" style="display:inline-block;padding:11px 22px;font-family:helvetica,arial,sans-serif;font-size:13px;font-weight:600;color:#ffffff;text-decoration:none">${cta}</a>
+      </td>${secondaryBtn}
+    </tr></table>
+  </td></tr></table>
+
+</td></tr>
+
+<tr><td style="padding:20px 4px 0"><table width="100%" cellpadding="0" cellspacing="0"><tr>
+  <td><span style="font-family:helvetica,arial,sans-serif;font-size:12px;font-weight:700;color:#cbd5e1">${name}</span></td>
+  <td align="right"><span style="font-family:helvetica,arial,sans-serif;font-size:11px;color:#cbd5e1">${footer}</span></td>
+</tr></table></td></tr>
+
+</table>
+</td></tr></table>
+</body></html>`;
+}
+
+// --- Newsletter persistence ---
+async function loadNewsletters() {
+  try {
+    const r = await fetch('/api/newsletters');
+    newsletters = await r.json();
+    renderNlList();
+  } catch(e) { /* silent */ }
+}
+
+function renderNlList() {
+  const list = document.getElementById('nlList');
+  if (!newsletters.length) {
+    list.innerHTML = '<div class="empty-msg">No saved newsletters</div>';
+    return;
+  }
+  list.innerHTML = newsletters.map(n => {
+    const subj = n.subject || 'Untitled';
+    const badge = n.status === 'sent'
+      ? `<span class="nl-badge nl-badge-sent">Sent${n.sentTo ? ' · ' + n.sentTo : ''}</span>`
+      : '<span class="nl-badge nl-badge-draft">Draft</span>';
+    const date = new Date(n.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const active = n.id === currentId ? ' active' : '';
+    return `<div class="nl-item${active}" onclick="loadNewsletter('${n.id}')">
+      <div class="nl-row">
+        <span class="nl-subject">${subj}</span>
+        <button class="nl-del" onclick="event.stopPropagation();deleteNewsletter('${n.id}')" title="Delete">✕</button>
+      </div>
+      <div class="nl-row">
+        ${badge}
+        <span class="nl-date">${date}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function saveDraft() {
+  const subject = document.getElementById('subject').value.trim();
+  const previewText = document.getElementById('previewText').value.trim();
+  const body = document.getElementById('body').value.trim();
+  if (!subject && !body) return toast('err', 'Nothing to save', 'Add a subject or body first');
+
+  try {
+    let r;
+    if (currentId) {
+      r = await fetch(`/api/newsletters/${currentId}`, {
+        method: 'PUT',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ subject, previewText, body })
+      });
+    } else {
+      r = await fetch('/api/newsletters', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ subject, previewText, body })
+      });
+    }
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    currentId = d.id;
+    document.getElementById('cardTitle').textContent = subject || 'Untitled Draft';
+    toast('ok', 'Draft saved');
+    await loadNewsletters();
+  } catch(e) { toast('err', 'Save failed', e.message); }
+}
+
+function loadNewsletter(id) {
+  const n = newsletters.find(nl => nl.id === id);
+  if (!n) return;
+  currentId = n.id;
+  document.getElementById('subject').value = n.subject;
+  document.getElementById('previewText').value = n.previewText;
+  document.getElementById('body').value = n.body;
+  document.getElementById('cardTitle').textContent = n.subject || 'Untitled Draft';
+  renderNlList();
+}
+
+async function deleteNewsletter(id) {
+  if (!confirm('Delete this newsletter?')) return;
+  try {
+    const r = await fetch(`/api/newsletters/${id}`, { method: 'DELETE' });
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    if (currentId === id) clearComposer();
+    toast('ok', 'Newsletter deleted');
+    await loadNewsletters();
+  } catch(e) { toast('err', 'Delete failed', e.message); }
+}
+
+function clearComposer() {
+  currentId = null;
+  document.getElementById('subject').value = '';
+  document.getElementById('previewText').value = '';
+  document.getElementById('body').value = '';
+  document.getElementById('cardTitle').textContent = 'New Newsletter';
+  renderNlList();
+}
+
+function preview() {
+  const subject = document.getElementById('subject').value;
+  const previewText = document.getElementById('previewText').value;
+  const body = document.getElementById('body').value;
+  document.getElementById('previewFrame').srcdoc = buildEmail(subject, body, previewText);
+  document.getElementById('overlay').classList.add('open');
+}
+
+function closePreview() { document.getElementById('overlay').classList.remove('open'); }
+document.getElementById('overlay').addEventListener('click', e => { if(e.target===e.currentTarget) closePreview(); });
+
+async function send() {
+  const subject = document.getElementById('subject').value.trim();
+  const previewText = document.getElementById('previewText').value.trim();
+  const body = document.getElementById('body').value.trim();
+  if (!subject) return toast('err','Missing subject','Please add a subject line');
+  if (!body) return toast('err','Missing body','Please write some content');
+  if (!subs.length) return toast('err','No subscribers','Refresh the list first');
+  if (!confirm(`Send this newsletter to ${subs.length} subscriber${subs.length!==1?'s':''}?`)) return;
+
+  const btn = document.getElementById('sendBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Sending...';
+
+  try {
+    const r = await fetch('/api/send', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({subject, previewText, body, id: currentId})
+    });
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    toast('ok', `Sent to ${d.sent} subscriber${d.sent!==1?'s':''}!`, d.failed>0?`${d.failed} failed`:'All delivered');
+    if (d.sent > 0) {
+      clearComposer();
+      await loadNewsletters();
+    }
+  } catch(e) { toast('err','Send failed',e.message); }
+  finally { btn.disabled=false; btn.innerHTML='Send Newsletter'; }
+}
+
+function toast(type, title, detail='') {
+  const el = document.createElement('div');
+  el.className = `toast toast-${type==='ok'?'ok':'err'}`;
+  el.innerHTML = `<div class="toast-icon">${type==='ok'?'✓':'✕'}</div><div class="toast-msg"><strong>${title}</strong>${detail?`<span>${detail}</span>`:''}</div>`;
+  document.getElementById('toasts').appendChild(el);
+  setTimeout(()=>el.remove(), 5000);
+}
+
+// Boot
+loadConfig().then(() => {
+  loadSubs();
+  loadNewsletters();
+});
+</script>
+</body>
+</html>
