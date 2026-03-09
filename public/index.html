@@ -208,6 +208,44 @@ let subs = [];
 let newsletters = [];
 let currentId = null;
 let cfg = {}; // brand config from server
+let _autoSaveTimer = null;
+
+// ── localStorage draft auto-save ──
+const LS_KEY = 'newsletter_draft';
+
+function saveToLocalStorage() {
+  const data = {
+    subject: document.getElementById('subject').value,
+    previewText: document.getElementById('previewText').value,
+    body: document.getElementById('body').value,
+    currentId
+  };
+  localStorage.setItem(LS_KEY, JSON.stringify(data));
+}
+
+function restoreFromLocalStorage() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return false;
+    const data = JSON.parse(raw);
+    if (!data.subject && !data.body) return false;
+    document.getElementById('subject').value = data.subject || '';
+    document.getElementById('previewText').value = data.previewText || '';
+    document.getElementById('body').value = data.body || '';
+    currentId = data.currentId || null;
+    document.getElementById('cardTitle').textContent = data.subject || 'New Newsletter';
+    return true;
+  } catch { return false; }
+}
+
+function clearLocalStorage() {
+  localStorage.removeItem(LS_KEY);
+}
+
+function debouncedAutoSave() {
+  clearTimeout(_autoSaveTimer);
+  _autoSaveTimer = setTimeout(saveToLocalStorage, 1000);
+}
 
 // ── Load brand config ──
 async function loadConfig() {
@@ -362,11 +400,16 @@ ${previewText?`<div style="display:none;max-height:0;overflow:hidden;mso-hide:al
 }
 
 // --- Newsletter persistence ---
-async function loadNewsletters() {
+async function loadNewsletters(autoLoad = false) {
   try {
     const r = await fetch('/api/newsletters');
     newsletters = await r.json();
     renderNlList();
+    // Auto-load the most recent draft into the composer on page load
+    if (autoLoad && !currentId && newsletters.length) {
+      const draft = newsletters.find(n => n.status === 'draft');
+      if (draft) loadNewsletter(draft.id);
+    }
   } catch(e) { /* silent */ }
 }
 
@@ -421,6 +464,7 @@ async function saveDraft() {
     if (d.error) throw new Error(d.error);
     currentId = d.id;
     document.getElementById('cardTitle').textContent = subject || 'Untitled Draft';
+    clearLocalStorage();
     toast('ok', 'Draft saved');
     await loadNewsletters();
   } catch(e) { toast('err', 'Save failed', e.message); }
@@ -434,6 +478,7 @@ function loadNewsletter(id) {
   document.getElementById('previewText').value = n.previewText;
   document.getElementById('body').value = n.body;
   document.getElementById('cardTitle').textContent = n.subject || 'Untitled Draft';
+  clearLocalStorage();
   renderNlList();
 }
 
@@ -455,6 +500,7 @@ function clearComposer() {
   document.getElementById('previewText').value = '';
   document.getElementById('body').value = '';
   document.getElementById('cardTitle').textContent = 'New Newsletter';
+  clearLocalStorage();
   renderNlList();
 }
 
@@ -492,6 +538,7 @@ async function send() {
     if (d.error) throw new Error(d.error);
     toast('ok', `Sent to ${d.sent} subscriber${d.sent!==1?'s':''}!`, d.failed>0?`${d.failed} failed`:'All delivered');
     if (d.sent > 0) {
+      clearLocalStorage();
       clearComposer();
       await loadNewsletters();
     }
@@ -507,10 +554,20 @@ function toast(type, title, detail='') {
   setTimeout(()=>el.remove(), 5000);
 }
 
+// ── Auto-save listeners ──
+['subject', 'previewText', 'body'].forEach(id =>
+  document.getElementById(id).addEventListener('input', debouncedAutoSave)
+);
+
 // Boot
-loadConfig().then(() => {
+loadConfig().then(async () => {
   loadSubs();
-  loadNewsletters();
+  const hasLocalDraft = !!localStorage.getItem(LS_KEY);
+  await loadNewsletters(!hasLocalDraft); // skip server auto-load if local draft exists
+  if (hasLocalDraft && restoreFromLocalStorage()) {
+    toast('ok', 'Restored unsaved changes');
+    renderNlList();
+  }
 });
 </script>
 </body>
