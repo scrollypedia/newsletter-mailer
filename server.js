@@ -4,12 +4,14 @@ const fs = require('fs');
 const { google } = require('googleapis');
 const { Resend } = require('resend');
 const path = require('path');
+const schedule = require('node-schedule');
 
 const app = express();
 app.use(express.json());
 app.use(express.static('public'));
 
 const resend = new Resend(process.env.RESEND_API_KEY);
+const scheduledJobs = new Map();
 
 // ── Branding config (from env) ──────────────────────────
 function getBrandConfig() {
@@ -50,6 +52,22 @@ function loadNewsletters() {
 function saveNewsletters(list) {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
   fs.writeFileSync(NL_FILE, JSON.stringify(list, null, 2));
+}
+
+// Template persistence helpers
+const TPL_FILE = path.join(DATA_DIR, 'templates.json');
+
+function loadTemplatesFromFile() {
+  try {
+    return JSON.parse(fs.readFileSync(TPL_FILE, 'utf8'));
+  } catch {
+    return [];
+  }
+}
+
+function saveTemplatesToFile(list) {
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+  fs.writeFileSync(TPL_FILE, JSON.stringify(list, null, 2));
 }
 
 // Google Sheets auth via service account
@@ -222,9 +240,119 @@ app.delete('/api/newsletters/:id', (req, res) => {
   const list = loadNewsletters();
   const idx = list.findIndex(n => n.id === req.params.id);
   if (idx === -1) return res.status(404).json({ error: 'Newsletter not found' });
+  // Cancel scheduled job if exists
+  const job = scheduledJobs.get(req.params.id);
+  if (job) { job.cancel(); scheduledJobs.delete(req.params.id); }
   const removed = list.splice(idx, 1)[0];
   saveNewsletters(list);
   res.json({ deleted: removed.id });
+});
+
+// ── Template endpoints ──
+
+app.get('/api/templates', (req, res) => {
+  const list = loadTemplatesFromFile().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  res.json(list);
+});
+
+app.post('/api/templates', (req, res) => {
+  const { name, subject, previewText, body } = req.body;
+  if (!name) return res.status(400).json({ error: 'Template name is required' });
+  const now = new Date().toISOString();
+  const template = { id: String(Date.now()), name, subject: subject || '', previewText: previewText || '', body: body || '', createdAt: now };
+  const list = loadTemplatesFromFile();
+  list.push(template);
+  saveTemplatesToFile(list);
+  res.json(template);
+});
+
+app.delete('/api/templates/:id', (req, res) => {
+  const list = loadTemplatesFromFile();
+  const idx = list.findIndex(t => t.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: 'Template not found' });
+  const removed = list.splice(idx, 1)[0];
+  saveTemplatesToFile(list);
+  res.json({ deleted: removed.id });
+});
+
+// ── Scheduling endpoints ──
+
+function registerScheduledJob(newsletter) {
+  const existing = scheduledJobs.get(newsletter.id);
+  if (existing) existing.cancel();
+  const sendDate = new Date(newsletter.scheduledAt);
+  console.log(`Scheduling "${newsletter.subject}" for ${sendDate.toISOString()}`);
+  const job = schedule.scheduleJob(sendDate, async () => {
+    console.log(`Sending scheduled newsletter "${newsletter.subject}"...`);
+    try {
+      const { subscribers } = await getActiveSubscribers();
+      if (!subscribers || !subscribers.length) { console.error('No active subscribers for scheduled send'); return; }
+      const brand = getBrandConfig();
+      const results = [];
+      for (const sub of subscribers) {
+        const result = await resend.emails.send({
+          from: process.env.FROM_EMAIL || `${brand.name} <updates@example.com>`,
+          to: sub.email,
+          subject: newsletter.subject,
+          html: buildEmailHtml(newsletter.subject, newsletter.body, newsletter.previewText, brand),
+        });
+        results.push({ email: sub.email, id: result.data?.id, error: result.error });
+      }
+      const sent = results.filter(r => !r.error).length;
+      console.log(`Scheduled send: ${sent} sent, ${results.filter(r => r.error).length} failed`);
+      const list = loadNewsletters();
+      const idx = list.findIndex(n => n.id === newsletter.id);
+      if (idx !== -1) {
+        list[idx].status = 'sent';
+        list[idx].sentAt = new Date().toISOString();
+        list[idx].sentTo = sent;
+        list[idx].updatedAt = new Date().toISOString();
+        saveNewsletters(list);
+      }
+    } catch (err) { console.error('Scheduled send failed:', err); }
+    scheduledJobs.delete(newsletter.id);
+  });
+  if (job) scheduledJobs.set(newsletter.id, job);
+}
+
+app.post('/api/schedule', async (req, res) => {
+  const { subject, body, previewText, scheduledAt, id: draftId } = req.body;
+  if (!subject || !body) return res.status(400).json({ error: 'Subject and body are required' });
+  if (!scheduledAt) return res.status(400).json({ error: 'scheduledAt is required' });
+  const sendDate = new Date(scheduledAt);
+  if (sendDate <= new Date()) return res.status(400).json({ error: 'Scheduled time must be in the future' });
+  try {
+    const now = new Date().toISOString();
+    const list = loadNewsletters();
+    let newsletter;
+    const existingIdx = draftId ? list.findIndex(n => n.id === draftId) : -1;
+    if (existingIdx !== -1) {
+      Object.assign(list[existingIdx], { subject, previewText: previewText || '', body, status: 'scheduled', scheduledAt, updatedAt: now });
+      newsletter = list[existingIdx];
+    } else {
+      newsletter = { id: String(Date.now()), subject, previewText: previewText || '', body, status: 'scheduled', createdAt: now, updatedAt: now, scheduledAt, sentAt: null, sentTo: 0 };
+      list.push(newsletter);
+    }
+    saveNewsletters(list);
+    registerScheduledJob(newsletter);
+    res.json(newsletter);
+  } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/unschedule', (req, res) => {
+  const { id } = req.body;
+  if (!id) return res.status(400).json({ error: 'Newsletter id is required' });
+  const list = loadNewsletters();
+  const idx = list.findIndex(n => n.id === id);
+  if (idx === -1) return res.status(404).json({ error: 'Newsletter not found' });
+  if (list[idx].status !== 'scheduled') return res.status(400).json({ error: 'Newsletter is not scheduled' });
+  const job = scheduledJobs.get(id);
+  if (job) { job.cancel(); scheduledJobs.delete(id); }
+  list[idx].status = 'draft';
+  delete list[idx].scheduledAt;
+  list[idx].updatedAt = new Date().toISOString();
+  saveNewsletters(list);
+  res.json(list[idx]);
 });
 
 // Build clean email HTML — uses brand config from env
@@ -238,6 +366,7 @@ function buildEmailHtml(subject, body, previewText = '', brand) {
   const COLOR_BORDER = b.colorBorder;
 
   const renderInline = (text) => text
+    .replace(/!\[(.*?)\]\((.*?)\)/g, '<img src="$2" alt="$1" style="max-width:100%;height:auto;display:inline-block;border-radius:4px;vertical-align:middle" />')
     .replace(/\*\*(.*?)\*\*/g, '<strong style="color:#0f172a;font-weight:600">$1</strong>')
     .replace(/`(.*?)`/g, `<code style="font-family:'Courier New',monospace;font-size:12px;background:#f1f5f9;color:${COLOR};padding:2px 5px;border-radius:3px;border:1px solid #e2e8f0">$1</code>`)
     .replace(/\[(.*?)\]\((.*?)\)/g, `<a href="$2" style="color:${COLOR};text-decoration:underline;text-decoration-color:#a5b4fc">$1</a>`);
@@ -289,6 +418,13 @@ function buildEmailHtml(subject, body, previewText = '', brand) {
     // Divider
     if (line === '---') {
       return `<tr><td style="padding:8px 0 20px"><div style="height:1px;background:#f1f5f9"></div></td></tr>`;
+    }
+
+    // Image: ![alt](url)
+    const imgMatch = line.match(/^!\[(.*?)\]\((.*?)\)$/);
+    if (imgMatch) {
+      const [, alt, src] = imgMatch;
+      return `<tr><td style="padding:0 0 16px;text-align:center"><img src="${src}" alt="${alt}" style="max-width:100%;height:auto;display:block;margin:0 auto;border-radius:8px" /></td></tr>`;
     }
 
     // Regular paragraph
@@ -423,6 +559,29 @@ if (missing.length) {
   console.error('   Copy .env.example to .env and fill in the values.\n');
   process.exit(1);
 }
+
+// Reload scheduled jobs on boot
+(function reloadScheduledJobs() {
+  const list = loadNewsletters();
+  const now = new Date();
+  let reloaded = 0;
+  let changed = false;
+  for (const nl of list) {
+    if (nl.status === 'scheduled' && nl.scheduledAt) {
+      if (new Date(nl.scheduledAt) > now) {
+        registerScheduledJob(nl);
+        reloaded++;
+      } else {
+        nl.status = 'draft';
+        nl.updatedAt = now.toISOString();
+        delete nl.scheduledAt;
+        changed = true;
+      }
+    }
+  }
+  if (changed) saveNewsletters(list);
+  if (reloaded) console.log(`Reloaded ${reloaded} scheduled newsletter(s)`);
+})();
 
 const PORT = process.env.PORT || 3000;
 const brand = getBrandConfig();

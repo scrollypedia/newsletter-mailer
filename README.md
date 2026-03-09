@@ -17,12 +17,17 @@ A minimal, self-hosted newsletter admin panel. Reads subscribers from Google She
 ## Features
 
 - Compose newsletters with a clean admin UI
-- Markdown-like formatting: headings, bold, code, links, callouts, numbered items
+- **Formatting toolbar** — insert headings, bold, code, links, images, callouts, and dividers with one click
+- **Live preview** — see your newsletter rendered in real-time as you type
+- **Image support** — embed images with `![alt](url)` syntax
+- **Newsletter templates** — save and reuse your best layouts
+- **Scheduling** — pick a date and time to send later; scheduled jobs survive server restarts
 - Live email preview before sending
 - Save drafts, manage newsletter history
+- Auto-save to localStorage — drafts persist across page refreshes
 - Subscriber list pulled from Google Sheets
 - Fully customizable branding via environment variables — colors, logo, CTAs, footer text
-- No database required (drafts saved as JSON)
+- No database required (drafts and templates saved as JSON)
 
 ## Prerequisites
 
@@ -150,14 +155,16 @@ Customize the admin UI and sent emails entirely from your `.env`:
 
 1. Open [http://localhost:3000](http://localhost:3000)
 2. Your active subscribers appear in the sidebar (pulled from Google Sheets)
-3. Compose your newsletter using the editor
-4. Click **Preview** to see exactly how the email will look
-5. Click **Send Newsletter** to send to all active subscribers
-6. Drafts auto-save and past newsletters are tracked in the sidebar
+3. Compose your newsletter using the editor — use the **formatting toolbar** or type the syntax directly
+4. Toggle **Live Preview** to see your content rendered in real-time
+5. Click **Preview** to see the full email as recipients will receive it
+6. **Save as Template** to reuse the layout later, or load a saved template from **Templates**
+7. Send immediately with **Send Newsletter**, or pick a date/time and click **Schedule**
+8. Drafts auto-save to localStorage and past newsletters are tracked in the sidebar
 
 ### Body Formatting
 
-The compose editor supports a lightweight formatting syntax:
+The compose editor supports a lightweight formatting syntax. Use the **formatting toolbar** to insert these, or type them directly:
 
 ```
 ## Section Heading
@@ -168,6 +175,9 @@ Creates an uppercase colored heading with a divider line.
 `inline code` renders with a code background.
 
 [Link text](https://example.com) creates a clickable link.
+
+![Alt text](https://example.com/image.png)
+Embeds an image (block-level, centered).
 
 → This is a callout block
 Renders as a highlighted box with a colored left border.
@@ -200,12 +210,14 @@ The app stores drafts in a local `data/` directory as JSON. For persistent stora
 ## Project Structure
 
 ```
-├── server.js          # Express server, API routes, email template builder
+├── server.js            # Express server, API routes, email template builder, scheduler
 ├── public/
-│   └── index.html     # Admin UI (single-page app)
+│   └── index.html       # Admin UI (single-page app)
 ├── data/
-│   └── newsletters.json  # Auto-created — saved drafts & sent history
-├── .env.example       # Template for all configuration
+│   ├── newsletters.json # Auto-created — saved drafts & sent history
+│   └── templates.json   # Auto-created — saved newsletter templates
+├── screenshots/         # README screenshots
+├── .env.example         # Template for all configuration
 └── package.json
 ```
 

@@ -113,6 +113,36 @@
     .toast-msg strong { display: block; margin-bottom: 2px; }
     .toast-msg span { font-weight: 400; font-size: 11px; opacity: 0.8; }
 
+    /* Formatting toolbar */
+    .fmt-toolbar { padding: 8px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+    .fmt-btn { padding: 4px 8px; background: var(--bg); border: 1px solid var(--border); border-radius: 5px; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--body); cursor: pointer; transition: all 0.15s; line-height: 1.3; }
+    .fmt-btn:hover { background: var(--brand-light); border-color: var(--brand-border); color: var(--brand); }
+    .fmt-sep { width: 1px; height: 20px; background: var(--border); margin: 0 4px; }
+    .live-preview-toggle { margin-left: auto; font-family: 'JetBrains Mono', monospace; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); background: none; border: 1px solid var(--border); padding: 4px 10px; border-radius: 5px; cursor: pointer; transition: all 0.15s; }
+    .live-preview-toggle:hover { background: var(--bg); }
+    .live-preview-toggle.active { background: var(--brand-light); border-color: var(--brand-border); color: var(--brand); }
+    .live-preview-panel { border-top: 1px solid var(--border); background: var(--bg); max-height: 0; overflow: hidden; transition: max-height 0.3s ease; }
+    .live-preview-panel.open { max-height: 400px; overflow-y: auto; }
+    .live-preview-inner { padding: 20px 24px; }
+    .live-preview-label { font-family: 'JetBrains Mono', monospace; font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 12px; }
+
+    /* Template modal */
+    .tpl-list { display: flex; flex-direction: column; gap: 8px; padding: 16px 20px; max-height: 400px; overflow-y: auto; }
+    .tpl-item { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; transition: all 0.15s; }
+    .tpl-item:hover { border-color: var(--brand-border); background: var(--brand-light); }
+    .tpl-name { font-size: 13px; font-weight: 500; color: var(--ink); }
+    .tpl-subject { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .tpl-del { background: none; border: none; font-size: 11px; color: var(--muted); cursor: pointer; padding: 4px 6px; border-radius: 4px; opacity: 0; transition: opacity 0.15s; }
+    .tpl-item:hover .tpl-del { opacity: 1; }
+    .tpl-del:hover { color: #dc2626; background: #fef2f2; }
+    .tpl-empty { text-align: center; padding: 32px 16px; color: var(--muted); font-size: 13px; }
+
+    /* Schedule UI */
+    .schedule-input { font-family: 'JetBrains Mono', monospace; font-size: 12px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; color: var(--ink); background: #fff; outline: none; }
+    .schedule-input:focus { border-color: var(--brand-border); }
+    .nl-badge-scheduled { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
+    .toolbar { flex-wrap: wrap; }
+
     ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
   </style>
 </head>
@@ -172,17 +202,45 @@
         <input type="text" id="previewText" placeholder="What we shipped this week and what's coming next..." maxlength="150" />
       </div>
 
+      <div class="fmt-toolbar">
+        <button class="fmt-btn" onclick="insertFmt('heading')" title="Section Heading">## H</button>
+        <button class="fmt-btn" onclick="insertFmt('bold')" title="Bold">**B**</button>
+        <button class="fmt-btn" onclick="insertFmt('code')" title="Inline Code">`C`</button>
+        <button class="fmt-btn" onclick="insertFmt('link')" title="Link">[Link]</button>
+        <button class="fmt-btn" onclick="insertFmt('image')" title="Image">Img</button>
+        <div class="fmt-sep"></div>
+        <button class="fmt-btn" onclick="insertFmt('callout')" title="Callout">→ Callout</button>
+        <button class="fmt-btn" onclick="insertFmt('divider')" title="Divider">---</button>
+        <button class="fmt-btn" onclick="insertFmt('numbered')" title="Numbered Item">1.</button>
+        <button class="live-preview-toggle" id="previewToggle" onclick="toggleLivePreview()">Live Preview</button>
+      </div>
+
       <div class="field" style="border-bottom:none">
         <div class="field-label">
           Body
-          <span class="field-hint">## Heading · **bold** · `code` · [link](url) · → callout · --- divider · 1. **Title**\nBody</span>
+          <span class="field-hint">## Heading · **bold** · `code` · [link](url) · ![alt](url) · → callout · --- divider · 1. **Title**\nBody</span>
         </div>
         <textarea id="body" placeholder="Hi everyone,&#10;&#10;Here's what's new this week..."></textarea>
+      </div>
+
+      <div class="live-preview-panel" id="livePreviewPanel">
+        <div class="live-preview-inner">
+          <div class="live-preview-label">Live Preview</div>
+          <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:20px;">
+            <table width="100%" cellpadding="0" cellspacing="0" id="livePreviewTable">
+              <tr><td><p style="color:#cbd5e1;font-family:helvetica,sans-serif;font-size:14px">Start writing to see preview...</p></td></tr>
+            </table>
+          </div>
+        </div>
       </div>
 
       <div class="toolbar">
         <button class="btn btn-ghost" onclick="preview()">Preview</button>
         <button class="btn btn-ghost" onclick="saveDraft()">Save Draft</button>
+        <button class="btn btn-ghost" onclick="saveAsTemplate()">Save as Template</button>
+        <button class="btn btn-ghost" onclick="openTemplates()">Templates</button>
+        <input type="datetime-local" id="scheduleAt" class="schedule-input" title="Schedule date/time" />
+        <button class="btn btn-ghost" onclick="scheduleNewsletter()" id="scheduleBtn">Schedule</button>
         <button class="btn btn-primary" id="sendBtn" onclick="send()">Send Newsletter</button>
         <div class="to-pill">To: <strong id="recipCount">—</strong> subscribers</div>
       </div>
@@ -198,6 +256,19 @@
       <button class="modal-close" onclick="closePreview()">✕</button>
     </div>
     <div class="modal-body"><iframe id="previewFrame"></iframe></div>
+  </div>
+</div>
+
+<!-- Template Modal -->
+<div class="overlay" id="tplOverlay">
+  <div class="modal" style="width:480px">
+    <div class="modal-head">
+      <h3>Templates</h3>
+      <button class="modal-close" onclick="closeTemplates()">✕</button>
+    </div>
+    <div id="tplListContainer">
+      <div class="tpl-empty">Loading...</div>
+    </div>
   </div>
 </div>
 
@@ -284,6 +355,7 @@ async function loadSubs() {
 function ri(t) {
   const C = cfg.color || '#4f46e5';
   return t
+    .replace(/!\[(.*?)\]\((.*?)\)/g, '<img src="$2" alt="$1" style="max-width:100%;height:auto;display:inline-block;border-radius:4px;vertical-align:middle" />')
     .replace(/\*\*(.*?)\*\*/g, `<strong style="color:#0f172a;font-weight:600">$1</strong>`)
     .replace(/`(.*?)`/g, `<code style="font-family:'Courier New',monospace;font-size:12px;background:#f1f5f9;color:${C};padding:2px 5px;border-radius:3px;border:1px solid #e2e8f0">$1</code>`)
     .replace(/\[(.*?)\]\((.*?)\)/g, `<a href="$2" style="color:${C};text-decoration:underline">$1</a>`);
@@ -308,8 +380,85 @@ function renderBody(body) {
     }
     if (line==='---')
       return `<tr><td style="padding:8px 0 20px"><div style="height:1px;background:#f1f5f9"></div></td></tr>`;
+    const imgM = line.match(/^!\[(.*?)\]\((.*?)\)$/);
+    if (imgM) return `<tr><td style="padding:0 0 16px;text-align:center"><img src="${imgM[2]}" alt="${imgM[1]}" style="max-width:100%;height:auto;display:block;margin:0 auto;border-radius:8px" /></td></tr>`;
     return `<tr><td style="padding:0 0 16px"><p style="margin:0;font-family:helvetica,arial,sans-serif;font-size:15px;color:#334155;line-height:1.75">${ri(line.replace(/\n/g,'<br>'))}</p></td></tr>`;
   }).join('');
+}
+
+// ── Formatting toolbar ──
+function insertFmt(type) {
+  const ta = document.getElementById('body');
+  const start = ta.selectionStart;
+  const end = ta.selectionEnd;
+  const selected = ta.value.substring(start, end);
+  let insert = '';
+
+  switch (type) {
+    case 'heading':
+      insert = '## ' + (selected || 'Section Title');
+      break;
+    case 'bold':
+      insert = '**' + (selected || 'bold text') + '**';
+      break;
+    case 'code':
+      insert = '`' + (selected || 'code') + '`';
+      break;
+    case 'link': {
+      const url = prompt('Enter URL:', 'https://');
+      if (!url) { ta.focus(); return; }
+      insert = `[${selected || 'link text'}](${url})`;
+      break;
+    }
+    case 'image': {
+      const imgUrl = prompt('Enter image URL:', 'https://');
+      if (!imgUrl) { ta.focus(); return; }
+      const alt = prompt('Alt text (optional):', '') || 'image';
+      insert = `![${alt}](${imgUrl})`;
+      break;
+    }
+    case 'callout':
+      insert = '\u2192 ' + (selected || 'Callout text here');
+      break;
+    case 'divider':
+      insert = '---';
+      break;
+    case 'numbered':
+      insert = '1. **' + (selected || 'Item Title') + '**\nItem description here';
+      break;
+  }
+
+  ta.setRangeText(insert, start, end, 'end');
+  ta.focus();
+  debouncedAutoSave();
+  debouncedLivePreview();
+}
+
+// ── Live preview ──
+let _livePreviewTimer = null;
+let _livePreviewOpen = false;
+
+function toggleLivePreview() {
+  _livePreviewOpen = !_livePreviewOpen;
+  document.getElementById('livePreviewPanel').classList.toggle('open', _livePreviewOpen);
+  document.getElementById('previewToggle').classList.toggle('active', _livePreviewOpen);
+  if (_livePreviewOpen) updateLivePreview();
+}
+
+function updateLivePreview() {
+  if (!_livePreviewOpen) return;
+  const body = document.getElementById('body').value;
+  const table = document.getElementById('livePreviewTable');
+  if (!body.trim()) {
+    table.innerHTML = '<tr><td><p style="color:#cbd5e1;font-family:helvetica,sans-serif;font-size:14px">Start writing to see preview...</p></td></tr>';
+    return;
+  }
+  table.innerHTML = renderBody(body);
+}
+
+function debouncedLivePreview() {
+  clearTimeout(_livePreviewTimer);
+  _livePreviewTimer = setTimeout(updateLivePreview, 300);
 }
 
 function buildEmail(subject, body, previewText) {
@@ -421,15 +570,24 @@ function renderNlList() {
   }
   list.innerHTML = newsletters.map(n => {
     const subj = n.subject || 'Untitled';
-    const badge = n.status === 'sent'
-      ? `<span class="nl-badge nl-badge-sent">Sent${n.sentTo ? ' · ' + n.sentTo : ''}</span>`
-      : '<span class="nl-badge nl-badge-draft">Draft</span>';
+    let badge;
+    if (n.status === 'sent') {
+      badge = `<span class="nl-badge nl-badge-sent">Sent${n.sentTo ? ' \u00b7 ' + n.sentTo : ''}</span>`;
+    } else if (n.status === 'scheduled') {
+      const sd = new Date(n.scheduledAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+      badge = `<span class="nl-badge nl-badge-scheduled">\u23F0 ${sd}</span>`;
+    } else {
+      badge = '<span class="nl-badge nl-badge-draft">Draft</span>';
+    }
     const date = new Date(n.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     const active = n.id === currentId ? ' active' : '';
+    const actionBtn = n.status === 'scheduled'
+      ? `<button class="nl-del" onclick="event.stopPropagation();unscheduleNewsletter('${n.id}')" title="Cancel schedule" style="opacity:1;color:#b45309">\u2715</button>`
+      : `<button class="nl-del" onclick="event.stopPropagation();deleteNewsletter('${n.id}')" title="Delete">\u2715</button>`;
     return `<div class="nl-item${active}" onclick="loadNewsletter('${n.id}')">
       <div class="nl-row">
         <span class="nl-subject">${subj}</span>
-        <button class="nl-del" onclick="event.stopPropagation();deleteNewsletter('${n.id}')" title="Delete">✕</button>
+        ${actionBtn}
       </div>
       <div class="nl-row">
         ${badge}
@@ -478,8 +636,16 @@ function loadNewsletter(id) {
   document.getElementById('previewText').value = n.previewText;
   document.getElementById('body').value = n.body;
   document.getElementById('cardTitle').textContent = n.subject || 'Untitled Draft';
+  const schedInput = document.getElementById('scheduleAt');
+  if (n.status === 'scheduled' && n.scheduledAt) {
+    const d = new Date(n.scheduledAt);
+    schedInput.value = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  } else {
+    schedInput.value = '';
+  }
   clearLocalStorage();
   renderNlList();
+  updateLivePreview();
 }
 
 async function deleteNewsletter(id) {
@@ -499,9 +665,11 @@ function clearComposer() {
   document.getElementById('subject').value = '';
   document.getElementById('previewText').value = '';
   document.getElementById('body').value = '';
+  document.getElementById('scheduleAt').value = '';
   document.getElementById('cardTitle').textContent = 'New Newsletter';
   clearLocalStorage();
   renderNlList();
+  updateLivePreview();
 }
 
 function preview() {
@@ -546,6 +714,122 @@ async function send() {
   finally { btn.disabled=false; btn.innerHTML='Send Newsletter'; }
 }
 
+// ── Templates ──
+let templates = [];
+
+async function loadTemplatesList() {
+  try { templates = await (await fetch('/api/templates')).json(); } catch { templates = []; }
+}
+
+async function saveAsTemplate() {
+  const subject = document.getElementById('subject').value.trim();
+  const previewText = document.getElementById('previewText').value.trim();
+  const body = document.getElementById('body').value.trim();
+  if (!subject && !body) return toast('err', 'Nothing to save', 'Add content first');
+  const name = prompt('Template name:', subject || 'My Template');
+  if (!name) return;
+  try {
+    const r = await fetch('/api/templates', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ name, subject, previewText, body })
+    });
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    toast('ok', 'Template saved', name);
+    await loadTemplatesList();
+  } catch(e) { toast('err', 'Save failed', e.message); }
+}
+
+async function openTemplates() {
+  await loadTemplatesList();
+  const container = document.getElementById('tplListContainer');
+  if (!templates.length) {
+    container.innerHTML = '<div class="tpl-empty">No templates yet. Save one from the composer.</div>';
+  } else {
+    container.innerHTML = '<div class="tpl-list">' + templates.map(t => {
+      const date = new Date(t.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      return `<div class="tpl-item" onclick="useTemplate('${t.id}')">
+        <div><div class="tpl-name">${t.name}</div><div class="tpl-subject">${t.subject || 'No subject'} \u00b7 ${date}</div></div>
+        <button class="tpl-del" onclick="event.stopPropagation();deleteTemplate('${t.id}')" title="Delete">\u2715</button>
+      </div>`;
+    }).join('') + '</div>';
+  }
+  document.getElementById('tplOverlay').classList.add('open');
+}
+
+function closeTemplates() { document.getElementById('tplOverlay').classList.remove('open'); }
+
+function useTemplate(id) {
+  const t = templates.find(tpl => tpl.id === id);
+  if (!t) return;
+  currentId = null;
+  document.getElementById('subject').value = t.subject;
+  document.getElementById('previewText').value = t.previewText;
+  document.getElementById('body').value = t.body;
+  document.getElementById('scheduleAt').value = '';
+  document.getElementById('cardTitle').textContent = t.subject || 'New Newsletter';
+  clearLocalStorage();
+  renderNlList();
+  closeTemplates();
+  updateLivePreview();
+  toast('ok', 'Template loaded', t.name);
+}
+
+async function deleteTemplate(id) {
+  if (!confirm('Delete this template?')) return;
+  try {
+    const r = await fetch(`/api/templates/${id}`, { method: 'DELETE' });
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    toast('ok', 'Template deleted');
+    openTemplates();
+  } catch(e) { toast('err', 'Delete failed', e.message); }
+}
+
+// ── Scheduling ──
+async function scheduleNewsletter() {
+  const subject = document.getElementById('subject').value.trim();
+  const previewText = document.getElementById('previewText').value.trim();
+  const body = document.getElementById('body').value.trim();
+  const scheduledAt = document.getElementById('scheduleAt').value;
+  if (!subject) return toast('err', 'Missing subject', 'Please add a subject line');
+  if (!body) return toast('err', 'Missing body', 'Please write some content');
+  if (!scheduledAt) return toast('err', 'Missing time', 'Pick a date and time to schedule');
+  const sendDate = new Date(scheduledAt);
+  if (sendDate <= new Date()) return toast('err', 'Invalid time', 'Scheduled time must be in the future');
+  const dateLabel = sendDate.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  if (!confirm(`Schedule this newsletter for ${dateLabel}?`)) return;
+  const btn = document.getElementById('scheduleBtn');
+  btn.disabled = true; btn.textContent = 'Scheduling...';
+  try {
+    const r = await fetch('/api/schedule', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ subject, previewText, body, scheduledAt: sendDate.toISOString(), id: currentId })
+    });
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    currentId = d.id;
+    clearLocalStorage();
+    toast('ok', 'Newsletter scheduled', dateLabel);
+    await loadNewsletters();
+  } catch(e) { toast('err', 'Schedule failed', e.message); }
+  finally { btn.disabled = false; btn.textContent = 'Schedule'; }
+}
+
+async function unscheduleNewsletter(id) {
+  if (!confirm('Cancel this scheduled send?')) return;
+  try {
+    const r = await fetch('/api/unschedule', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ id })
+    });
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    toast('ok', 'Schedule cancelled');
+    await loadNewsletters();
+  } catch(e) { toast('err', 'Failed to cancel', e.message); }
+}
+
 function toast(type, title, detail='') {
   const el = document.createElement('div');
   el.className = `toast toast-${type==='ok'?'ok':'err'}`;
@@ -558,12 +842,17 @@ function toast(type, title, detail='') {
 ['subject', 'previewText', 'body'].forEach(id =>
   document.getElementById(id).addEventListener('input', debouncedAutoSave)
 );
+document.getElementById('body').addEventListener('input', debouncedLivePreview);
+
+// Template overlay close
+document.getElementById('tplOverlay').addEventListener('click', e => { if(e.target===e.currentTarget) closeTemplates(); });
 
 // Boot
 loadConfig().then(async () => {
   loadSubs();
+  loadTemplatesList();
   const hasLocalDraft = !!localStorage.getItem(LS_KEY);
-  await loadNewsletters(!hasLocalDraft); // skip server auto-load if local draft exists
+  await loadNewsletters(!hasLocalDraft);
   if (hasLocalDraft && restoreFromLocalStorage()) {
     toast('ok', 'Restored unsaved changes');
     renderNlList();
