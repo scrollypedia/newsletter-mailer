@@ -4,6 +4,14 @@ A minimal, self-hosted newsletter admin panel. Reads subscribers from Google She
 
 **Built by the team at [Scrollypedia](https://scrollypedia.ai)** — [learn more](https://scrollypedia.ai/apps/newsletter-mailer) about why we built this.
 
+### Admin UI — compose, preview, and send
+
+![Admin UI](screenshots/admin-ui.png)
+
+### Email Preview — see exactly how it renders
+
+![Email Preview](screenshots/email-preview.png)
+
 ---
 
 ## Features
@@ -111,8 +119,8 @@ Your sheet needs a header row with these columns:
 
 | timestamp | email | subscribe |
 |-----------|-------|-----------|
-| 2024-01-01 | user@example.com | true |
-| 2024-01-02 | user2@example.com | false |
+| 2026-01-01 | user@example.com | true |
+| 2026-01-02 | user2@example.com | false |
 
 The `subscribe` column accepts: `true`, `yes`, `1`, `subscribe`, or `subscribed`.
 Any other value (e.g. `false`, `no`, `unsubscribe`) = excluded from sends.

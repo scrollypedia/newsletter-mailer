@@ -232,7 +232,6 @@ function buildEmailHtml(subject, body, previewText = '', brand) {
   const b = brand || getBrandConfig();
   const now = new Date();
   const dateStr = now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-  const issueNum = Math.floor((now - new Date('2026-01-01')) / (1000 * 60 * 60 * 24));
 
   const COLOR = b.color;
   const COLOR_LIGHT = b.colorLight;
@@ -322,8 +321,7 @@ function buildEmailHtml(subject, body, previewText = '', brand) {
         <!-- Meta bar -->
         <tr><td style="padding-bottom:16px">
           <table width="100%" cellpadding="0" cellspacing="0"><tr>
-            <td><span style="font-family:'Courier New',monospace;font-size:10px;color:#94a3b8;letter-spacing:0.1em;text-transform:uppercase">Issue #${issueNum}</span></td>
-            <td align="right"><span style="font-family:'Courier New',monospace;font-size:10px;color:#94a3b8">${dateStr}</span></td>
+            <td><span style="font-family:'Courier New',monospace;font-size:10px;color:#94a3b8">${dateStr}</span></td>
           </tr></table>
         </td></tr>
 
